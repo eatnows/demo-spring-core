@@ -1,4 +1,4 @@
-참고 강의 : [링크](https://www.inflearn.com/course/%EC%8A%A4%ED%94%84%EB%A7%81-%ED%95%B5%EC%8B%AC-%EC%9B%90%EB%A6%AC-%EA%B8%B0%EB%B3%B8%ED%8E%B8)
+[참고 강의](https://www.inflearn.com/course/%EC%8A%A4%ED%94%84%EB%A7%81-%ED%95%B5%EC%8B%AC-%EC%9B%90%EB%A6%AC-%EA%B8%B0%EB%B3%B8%ED%8E%B8)
 
 
 ### FilterType 옵션
@@ -83,5 +83,98 @@ public class OrderServiceImpl implements OrderService {
 #### 정리 
 - 생성자 주입 방식을 선택하면 프레임워크에 의존하지 않고, 순수한 자바 언어의 특징을 잘 살리는 방법이다.
 - 생성자와 수정자 주입을 동시에 사용할 수 있기 때문에 기본으로 생성자 주입을 사용하고 필수 값이 아닌 경우에는 수정자 주입 방식을 옵션으로 부여하면 된다.
+
+
+### Bean 중복등록 해결
+조회 대상 빈이 2개 이상일 때 해결 방법
+- @Autowired 필드명 매칭
+- @Qualifier -> @Qualifier 끼리 매칭 -> 빈 이름 매칭
+- @Primary 사용
+
+
+#### @Autowired 필드명 매칭
+`@Autowired`는 기본적으론 타입 매칭을 시도하는데, 여러 빈이 존재하면 필드이름 이나 파라미터 이름으로 빈 이름을 매칭한다.
+```java
+@Autowired
+private DiscountPolicy rateDiscountPoilicy;
+```
+
+
+#### @Quailifier 사용
+`Quilifier`는 추가 구분자를 붙여주는 방법이다. 주입시 추가적인 방법을 제공하는 것이지 빈 이름을 변경하는 것은 아니다.
+1. 빈 등록시 @Qualifier를 붙여준다.
+2. 주입시에 @Qualifier를 붙여주고 등록한 이름으로 적어준다.
+
+```java
+@Component
+@Qualifier("mainDiscountPolicy")
+public class RateDiscountPolicy implements DiscountPolicy{
+
+    private int discountPercent = 10;
+
+    @Override
+    public int discount(Member member, int price) {
+        if (member.getGrade() == Grade.VIP) {
+            return price * discountPercent / 100;
+        }
+        return 0;
+    }
+}
+
+
+public class OrderServiceImpl implements OrderService {
+
+    private final MemberRepository memberRepository;
+    private final DiscountPolicy discountPolicy;
+
+    public OrderServiceImpl(MemberRepository memberRepository, @Qualifier("mainDiscountPolicy") DiscountPolicy discountPolicy) {
+        this.memberRepository = memberRepository;
+        this.discountPolicy = discountPolicy;
+    }
+}
+```
+
+만약 `@Qualifier`로 설정한 구분자를 찾지 못한다면, 해당 구분자라는 이름의 스프링 빈을 추가로 찾는다. (그래도 없을시 `NoSuchBeanDefinitionException` 발생)
+<br> 하지만 개발시 혼란을 야기하기 때문에 `@Qualifier`를 찾는 용도로만 사용하는 것이 명확하고 좋다.
+
+
+#### @Primary 사용
+`@Primary`는 우선순위를 정하는 방법, 여러 빈이 매칭되면 `@Primary`가 우선권을 가진다.
+```java
+@Component
+@Primary 
+public class RateDiscountPolicy implements DiscountPolicy{
+
+    private int discountPercent = 10;
+
+    @Override
+    public int discount(Member member, int price) {
+        if (member.getGrade() == Grade.VIP) {
+            return price * discountPercent / 100;
+        }
+        return 0;
+    }
+}
+
+@Component
+public class OrderServiceImpl implements OrderService {
+
+    private final MemberRepository memberRepository;
+    private final DiscountPolicy discountPolicy;
+
+    public OrderServiceImpl(MemberRepository memberRepository, DiscountPolicy discountPolicy) {
+        this.memberRepository = memberRepository;
+        this.discountPolicy = discountPolicy;
+    }
+}
+```
+
+#### @Qualifier와 @Primary의 우선순위
+*@Qualifier와 @Primary를 같이 사용하면 어떻게 될까?* <br>
+스프링에서는 자동보다는 수덩이,
+넓은 범위의 선택권 보다는 좁은 범위의 선택권이 우선 순위가 높다. 따라서 `@Qualifier`의 우선순위가 높다.
+
+
+
 
 
