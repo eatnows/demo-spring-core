@@ -251,3 +251,26 @@ String destroyMethod() default AbstractBeanDefinition.INFER_METHOD;
 
 public static final String INFER_METHOD = "(inferred)";
 ```
+
+
+
+#### 애너테이션 @PostConstruct, @PreDestroy
+초기화, 소멸 메서드로 사용할 메서드위에 해당 애너테이션을 달아주면 된다.
+```java
+@PostConstruct
+public void init() {
+    System.out.println("NetworkClient.afterPropertiesSet");
+    connect();
+    call("초기화 연결 메시지");
+}
+
+@PreDestroy
+public void close() {
+    System.out.println("NetworkClient.destroy");
+    disconnect();
+}
+```
+- 최신 스프링에서 가장 권장하는 방법
+- 패키지가 `javax.annotation.PostConstruct`이다. 스프링에 종속적인 기술이 아니라 JSR-250이라는 자바 표준이여서 스프링이 아닌 다른 컨테이너에서도 동작한다.
+- 컴포넌트 스캔과도 잘 어울린다.
+- 유일한 단점은 외부 라이브러리에 적용하지 못한다는 것이다. 이때는 `@Bean`의 기능을 활용해야한다.
