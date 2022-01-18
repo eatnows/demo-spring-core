@@ -217,3 +217,37 @@ public interface DisposableBean {
 - 외부 라이브러리에 적용할 수 없다. (수정이 안되는 외부 라이브러리)
 
 스프링 초창기에 나온 방법이여서 지금은 거의 사용하지 않고 다른 방법을 많이 사용한다.
+
+#### 빈 등록 초기화, 소멸 메서드
+빈으로 등록할 클래스의 초기화되면 실행할 메서드와 빈이 소멸됐을때 발생할 메서드를 작성후 
+빈으로 등록하는 설정 정보에 `initMethod`와 `destroyMethod`옵션 값을 적어준다.
+```java
+@Configuration
+static class LifeCycleConfig {
+    // NetworkClient 클래스의 init 메서드와 close 메서드로 지정 
+    @Bean(initMethod = "init", destroyMethod = "close")
+    public NetworkClient networkClient() {
+        NetworkClient networkClient = new NetworkClient();
+        networkClient.setUrl("http://hello-spring.dev");
+        return networkClient;
+    }
+}
+```
+
+**특징**
+- 오버라이딩이 아니기 때문에 메서드 이름을 자유롭게 설정가능
+- 빈으로 만들 클래스 자체가 스프링에 의존하지 않는다.
+- 코드가 아니라 설정 정보를 사용하기 때문에 코드를 고칠 수 없는 외부 라이브러리에도 적용할 수 있다.
+
+**소멸 메서드 추론**
+`@Bean`의 `destroyMethod` 속성의 기본값은 `(inferred)`(추론)으로 등록되어있다. <br>
+보통 라이브러리 대부분이 `close`, `shutdown`이라는 이름의 종료 메서드를 사용한다.
+이 추론기능은 `close`, `shutdown`라는 이름의 메서드를 자동으로 호출해준다. (종료 메서드를 추론해서 호출하는 것)
+<br> 따라서 직접 빈으로 등록하면 종료 메서드는 따로 적어주지 않아도 동작한다. 추론 기능을 사용하지 않으려면 `destroyMethod="""`처럼 빈 공백으로 지정하면 된다.
+
+```java
+String destroyMethod() default AbstractBeanDefinition.INFER_METHOD;
+
+
+public static final String INFER_METHOD = "(inferred)";
+```
