@@ -274,3 +274,80 @@ public void close() {
 - 패키지가 `javax.annotation.PostConstruct`이다. 스프링에 종속적인 기술이 아니라 JSR-250이라는 자바 표준이여서 스프링이 아닌 다른 컨테이너에서도 동작한다.
 - 컴포넌트 스캔과도 잘 어울린다.
 - 유일한 단점은 외부 라이브러리에 적용하지 못한다는 것이다. 이때는 `@Bean`의 기능을 활용해야한다.
+
+
+### 빈 스코프
+스코프는 번역 그대로 빈이 존재할 수 있는 범위를 뜻하며 스프링 빈은 기본적으로 싱글톤 스코프로 생성된다. <br> 
+싱글톤 스코프는 스프링 컨테이너의 시작과 함께 생성되어 스프잉 컨테이너가 종료될때 까지 유지된다.
+
+- 싱글톤: 기본 스코프, 스프링 컨테이너의 시작과 종료까지 유지되는 가장 넓은 범위의 스코프
+- 프로토타입: 스프링 컨테이너는 프로토타입 빈의 생성과 의존관계 주입까지만 관여하고 더는 관리하지 않는 매울 짧은 범위의 스코프
+- 웹 관련 스코프
+  - request: 웹 요청이 들어오고 나갈때 까지 유지되는 스코프
+  - session: 웹 세션이 생성되고 종료될 때 까지 유지되는 스코프
+  - application: 웹의 서블릿 컨텍스트와 같은 범위로 유지되는 스코프
+
+컴포넌트 스캔으로 등록과 설정에서 빈으로 수동 등록할 때 모두 `@Scope`를 사용한다
+```java
+@Scope("prototype")
+@Component
+public class Hello {}
+
+@Scope("prototype")
+@Bean
+PrototypeBean Hello() {
+    return new HelloBean();
+} 
+```
+
+프로토타입은 스프링 컨테이너가 빈을 생성하고 의존관계 주입, 초기화까지만 처리를한다. <br> 
+이후 클라이언트에 빈을 반환하고 더이상 생성된 프로토타입 빈을 관리하지 않는다. (매번 요청이 올때마다 새로 생성해서 반환)
+프로토타입 빈을 관리할 책임은 반환받은 클라이언트에 있다. 그래서 `@PreDestroy`와 같은 종료메서드가 호출되지 않는다. (종료 메서드를 호출해야한다면 클라이언트에서 해야함)
+
+
+#### 싱글톤 빈과 프로토타입 빈을 함께 사용시 문제점
+스프링은 일반적으로 싱글톤 빈을 사용하므로, 싱글톤 빈이 프로토타입 빈을 사용하게 된다. <br>
+그런데 싱글톤 빈은 생성 시점에만 의존관계 주입을 받기 떄문에, 프로토타입 빈이 새로 생성되기는 하지만 싱글톤 빈과 함께 계속 유지되는 것이 문제이다.
+
+사용자는 프로토타입 빈을 주입 시점에만 새로 생성하는게 아니라, 사용할 때 마다 새로 생성해 사용하는 것을 원할 것이다.
+
+이 문제를 해결하는 쉬운 방법은 `ApplicationContext`를 주입받아 직접 빈을 조회하는 것이다.
+```java
+@Autowired
+private Applicationcontext ac;
+
+public int logic() {
+    PrototypeBean prototypeBean = ac.getBean(PrototypeBean.class);
+    prototypeBean.addCount();
+    int count = prototypeBean.getCount*();
+    return count;
+}
+```
+위 코드를 실행해보면 `ac.getBean()`을 통해 항상 새로운 프로토타입 빈이 생성되는 것을 확인할 수 있다. <br>
+의존관계를 외부에서 주입(DI) 받는게 아니라 이렇게 직접 필요한 의존관계를 찾는 것을 Dependency Lookup (DL) 의존관계 조회(탐색) 이라고 한다.
+하지만 이렇게 `ApplicationContext`를 주입받게되면 스프링 컨테이너에 종속적인 코드가 되고, 단위 테스트도 어려워진다. 
+그래서 스프링에서는 지정한 프로토타입 빈을 찾아주는 DL의 기능을 제공해준다.
+
+##### ObjectFactory, ObjectProvider
+지정한 빈을 컨테이너에서 (ApplicationContext를 통해 직접 조회하지 않고)대신 찾아주는 DL서비스를 제공하는 것이 `ObjectProvider`이다. <br>
+예전에는 `ObjectFactory`가 있었는데 `ObjectProvider`는 `ObjectFactory` 인터페이스를 상속받아 몇가지 기능을 더 추가한 것이다.
+
+```java
+@Autowired
+private ObjectProvider<PrototypeBean> prototypeBeanProvider;
+
+public int logic() {
+    PrototypeBean prototypeBean = prototypeBeanProvider.getObject();
+
+    prototypeBean.addCount();
+    int count = prototypeBean.getCount();
+    return count;
+}
+```
+`ObjectProvider`의 `getObject()`를 호출하면 내부에서는 스프링 컨테이너를 통해 해당 빈을 찾아 반환한다. (Dependency Lookup)
+<br> 스프링이 제공하는 기능이지만 기능이 단순하여 단위 테스트를 만들거나 mock 코드를 만들기는 훨씬 쉽다. `ObjectProvider`는 DL 정도의 기능만 제공한다. 프로토타입 빈과는 관련이 없다.
+
+
+
+
+
