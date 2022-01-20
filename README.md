@@ -347,6 +347,27 @@ public int logic() {
 `ObjectProvider`의 `getObject()`를 호출하면 내부에서는 스프링 컨테이너를 통해 해당 빈을 찾아 반환한다. (Dependency Lookup)
 <br> 스프링이 제공하는 기능이지만 기능이 단순하여 단위 테스트를 만들거나 mock 코드를 만들기는 훨씬 쉽다. `ObjectProvider`는 DL 정도의 기능만 제공한다. 프로토타입 빈과는 관련이 없다.
 
+#### JSR-330 Provider
+마지막으로 `javax.inject.Provider`라는 JSR-330 자바 표준을 사용하는 방법이다. 
+하지만 이 방법을 사용하려면 `javax.inject:javax.inject:1` 라이브러리를 `gradle`에 추가해야 한다.
+```groovy
+implementation 'javax.inject:javax.inject:1'
+```
+
+```java
+package javax.inject;
+
+public interface Provider<T> {
+    T get();
+}
+```
+
+`provider`의 `get()`을 호출하면 내부에서는 스프링 컨테이너를 통해 해당 빈을 찾아서 반환한다.(`DL`)
+<br> 자바 표준이기 때문에 스프링이 아닌 다른 컨테이너에서도 사용할 수 있다.
+기능이 단순하여 단위테스트를 만들거나 mock 코드를 만들기가 쉽다. `Provider`는 DL 정도의 기능만 제공한다.
+
+`ObjectProvider`, `JSR330 Provder`등은 프로토타입 뿐만 아니라 `DL`이 필요한 경우는 언제든지 사용이 가능하다.
+<br> 참고로 스프링이 제공하는 메서드에 `@Lookup` 애너테이션을 사용하는 방법도 있다.
 
 
 
