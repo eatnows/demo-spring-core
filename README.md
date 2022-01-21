@@ -370,5 +370,85 @@ public interface Provider<T> {
 <br> 참고로 스프링이 제공하는 메서드에 `@Lookup` 애너테이션을 사용하는 방법도 있다.
 
 
+### 웹 스코프
+웹 스코프는 웹 환경에서만 동작한다. 웹 스코프는 프로토타입과는 다르게 스프링이 해당 스코프의 종료시점까지 관리를 해서 종료 메서드가 호출된다.
+
+#### 웹 스코프 종류
+- request: HTTP 요청 하나가 들어오고 나갈때 까지 유지되는 스코프, 각각의 HTTP 요청마다 별도의 빈 인스턴스가 생성되고 관리된다.
+- session: HTTP Session과 동일한 생명주기를 가지는 스코프
+- application: 서블릿 컨텍스트 (`ServletContext`)와 동일한 생명주기를 가지는 스코프
+- websocket: 웹 소켓과 동일한 생명주기를 가지는 스코프
+
+웹 스코프는 웹 환경에서만 동작하므로 라이브러리를 추가해야한다.
+```groovy
+implementation 'org.springframework.boot:spring-boot-starter-web'
+```
+
+스프링 부트는 웹 라이브러리가 없으면 우리가 지금까지 학습한 `AnnotationConfigApplicationContext`를 기반으로 애플리케이션을 구동한다.
+웹 라이브러리가 추가되면 웹과 관련된 추가 설정과 환경들이 필요하므로 `AnnotationConfigServletWebServerApplicationContext`를 기반으로 애플리케이션을 구동한다.
+
+웹 스코프를 이용해서 요청온 데이터의 로그를 찍는 로직을 만든다고 할때 로그를 찍는 로거 클래스를 만들 수 있다.
+```java
+@Component
+@Scope(value = "request")
+public class MyLogger {
+
+    private String uuid;
+    private String requestURL;
+
+    public void setRequestURL(String requestURL) {
+        this.requestURL = requestURL;
+    }
+
+    public void log(String message) {
+        System.out.println("[" + uuid + "]" + "[" + requestURL + "] " + message);
+    }
+
+    @PostConstruct
+    public void init() {
+        uuid = UUID.randomUUID().toString();
+        System.out.println("[" + uuid + "] request scope bean create: " + this);
+    }
+
+    @PreDestroy
+    public void close() {
+        System.out.println("[" + uuid + "] request scope bean close: " + this);
+    }
+}
+```
+
+문제는 웹 스코프 빈을 이용하여 웹 서버를 시작하면 에러가 발생한다.
+```text
+Error creating bean with name 'myLogger': Scope 'request' is not active for the current thread; consider defining a scoped proxy for this bean if you intend to refer to it from a singleton; nested exception is java.lang.IllegalStateException: No thread-bound request found: Are you referring to request attributes outside of an actual web request, or processing a request outside of the originally receiving thread? If you are actually operating within a web request and still receive this message, your code is probably running outside of DispatcherServlet: In this case, use RequestContextListener or RequestContextFilter to expose the current request.
+```
+
+웹 스코프 request 빈은 해당 요청이 스프링 컨테이너까지 왔을때 빈이 생성이되는데 애플리케이션을 시작할 때
+의존관계를 주입하려고 하니 웹 스코프 빈이 생성되지 않아서 발생한 문제다. 
 
 
+#### 스코프와 Provider
+웹 스코프를 주입받아야하는 빈에 ObjectProvider로 주입을 받는다.
+```java
+@Controller
+@RequiredArgsConstructor
+public class LogDemoController {
+
+  private final LogDemoService logDemoService;
+  private final ObjectProvider<MyLogger> myLoggerProvider;
+
+  @RequestMapping("log-demo")
+  @ResponseBody
+  public String logDemo(HttpServletRequest request) {
+    String requestURL = request.getRequestURL().toString();
+    MyLogger myLogger = myLoggerProvider.getObject();
+    myLogger.setRequestURL(requestURL);
+
+    myLogger.log("controller test");
+    logDemoService.logic("testId");
+    return "OK";
+  }
+}
+```
+
+`ObjectProvider` 덕분에 `ObjectProvider.getObject()`를 호출하는 시점까지 request scope 빈의 생성을 하는 스프링 컨테이너요청을 지연할 수 있다.
+`ObjectProvider.getObject()`를 호출하는 시점에는 HTTP 요청이 진행중이기 때문에 request scope 빈이 정상적으로 처리된다.
